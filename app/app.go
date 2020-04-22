@@ -1,8 +1,11 @@
 package app
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -66,14 +69,23 @@ func NewApp() *App {
 	}
 }
 
-
-
-
 func newQuestion(priority int, question string) Question {
 
 	fmt.Println("accessing new Question")
 
-	ID := "2" // call random generation number here
+	now := time.Now().UnixNano()
+
+	t := strconv.FormatInt(now, 10)
+
+	s := question + t
+
+	bs := md5.New()
+
+	bs.Write([]byte(s))
+
+	hash1 := hex.EncodeToString(bs.Sum(nil)[:3])
+
+	ID := hash1 // call random generation number here
 
 	q := Question{ID: ID, Question: question, Priority: priority}
 
