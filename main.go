@@ -36,9 +36,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var responseAck app.Ack
 	var responseQuestion app.Question
 	var responseAnswer app.PostAnswerAck
-	var responseStatus app.Status
 	var content IncomingQuestion
 	var postAnswer app.Answer
+	var responseTotalStatus app.Status
 
 	if r.URL.Path == "/api/question/post" {
 
@@ -59,6 +59,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		responseQuestion, _ = application.GetNext()
 		responseJSON, _ := json.Marshal(responseQuestion)
+		fmt.Fprintf(w, "Response: %s\n", responseJSON)
+
+	}
+
+	if r.URL.Path == "/api/status" {
+
+		responseTotalStatus = application.GetTotalStatus()
+		responseJSON, _ := json.Marshal(responseTotalStatus)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 
 	}
@@ -90,9 +98,12 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		param := params.Get("question_id")
 
-		fmt.Println(param)
+		//fmt.Println(param)
+
+		var responseStatus app.Status
 
 		responseStatus, _ = application.GetStatus(param)
+		
 		responseJSON, _ := json.Marshal(responseStatus)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 

@@ -23,15 +23,18 @@ type App struct {
 type Answer struct {
 	ID 	    string
 	Answer	string
+	Question
 }
 
 // Status : here you tell us what Status is
 type Status struct {
+	ID       			string
 	Question
 	Status				string
 	TimeAnswered        time.Duration
 	mutex               sync.Mutex
 	Answer
+	AnsweredQuestions	int
 }
 
 // Question : here you tell us what Question is
@@ -45,13 +48,13 @@ type Question struct {
 type Ack struct {
 	ID         string
 	Success    bool
-	AckMessage string
+	Message    string
 }
 
 // PostAnswerAck : here you tell us what PostAnswerAck is
 type PostAnswerAck struct {
 	Success    bool
-	AckMessage string
+	Message string
 }
 
 // NewStatus : Constructor of status struct
@@ -89,8 +92,6 @@ func newQuestion(priority int, question string) Question {
 
 	q := Question{ID: ID, Question: question, Priority: priority}
 
-	fmt.Println("creating question:", q)
-
 	return q
 }
 
@@ -102,7 +103,7 @@ func (a *App) QuestionPost(priority int, question string) Ack {
 	ack := Ack{
 		ID:         q.ID,
 		Success:    true,
-		AckMessage: "delivered",
+		Message: "OK",
 	}
 
 	go func() {
@@ -142,18 +143,19 @@ func (a *App) GetNext() (Question, error) {
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
 	a.Answer.Answer = answer
+	a.Answer.ID = ID
 
 	ackpostanswered := PostAnswerAck{
 		Success: true,
-		AckMessage: "",
+		Message: "OK",
 	}
 
-	fmt.Println("Customer Service posting this answer:", a.Answer.Answer )
 
 	go func() {
 
 			a.answerQueue <- a.Answer
-
+			
+			a.Status.QuestionsProcessed()
 
 	}()
 
@@ -164,22 +166,35 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 // GetStatus :
 func (a *App) GetStatus(param string) ( Status, error ) {
 
-	s := NewStatus() 
-
-	fmt.Println(a.answerQueue)
+	s := NewStatus()
 
 	select {
 	case r, ok := <-a.answerQueue:
 		if ok {
-			fmt.Printf("Value %v was read.\n", r)
 			s.Answer = r
+			s.ID = r.ID
+			s.Status = "answered"
 			return *s, nil
 		}
 	default:
 		fmt.Println("No value ready, moving on.")
-		return *s, errors.New("Item does not exist")
+		return *s, errors.New("Does not exist")
 	}
 
 	return *s,nil
 
+}
+
+// QuestionsProcessed : method QuestionsProcessed
+func (s *Status ) QuestionsProcessed() {
+	fmt.Println("increasing in 1 the questions processed")
+	s.mutex.Lock()
+	s.AnsweredQuestions ++
+	s.mutex.Unlock()
+}
+
+func (s Status) GetTotalStatus() ( Status ) {
+
+	return s
+	
 }
