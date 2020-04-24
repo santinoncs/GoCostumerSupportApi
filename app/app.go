@@ -32,10 +32,10 @@ type Status struct {
 	mutex               sync.Mutex
 	QuestionsAnswered	int
 	QuestionsSubmited   int
-	AverageResponseTime int
+	AverageResponseTime float64
 	QuestionsProcess    int
 	timeCounter         time.Time
-	TimeAnswered		time.Duration
+	TimeAnswered		float64
 }
 
 // QuestionStatus : here you tell us what Status is
@@ -69,11 +69,6 @@ type PostAnswerAck struct {
 // NewQuestionStatus : Constructor of status struct
 func NewQuestionStatus() *QuestionStatus {
 	return &QuestionStatus{}
-}
-
-// NewStatus : Constructor of status struct
-func NewStatus() *Status {
-	return &Status{}
 }
 
 // NewApp : here you tell us what NewApp is
@@ -119,7 +114,7 @@ func (a *App) QuestionPost(priority int, question string) Ack {
 	ack := Ack{
 		ID:         q.ID,
 		Success:    true,
-		Message: "OK",
+		Message:    "OK",
 	}
 
 	go func() {
@@ -191,8 +186,9 @@ func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
 			s.ID = r.ID
 			s.Status = "answered"
 			t := time.Now()
+			
 			elapsed := t.Sub(a.timeCounter)
- 			a.Status.SetProcessed(elapsed)
+ 			a.Status.SetProcessed(elapsed.Seconds())
 			return *s, nil
 		}
 	default:
@@ -205,7 +201,7 @@ func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
 }
 
 // SetProcessed : method SetProcessed
-func (s *Status ) SetProcessed(e time.Duration) {
+func (s *Status ) SetProcessed(e float64) {
 	//s.mutex.Lock()
 	s.TimeAnswered += e
 	//s.mutex.Unlock()
@@ -229,19 +225,21 @@ func (s *Status ) QuestionsS() {
 
 func (s *Status) GetTotalStatus() ( Status ) {
 
-	//s.averageResponseTime = s.GetAverage()
+	s.AverageResponseTime = s.GetAverage()
+
+	//fmt.Println(len(c))
 	return *s
 	
 }
 
-// // GetAverage : method GetAverage
-// func (s *Status ) GetAverage() int64{
-// 	var microsperprocess int64
-// 	micros := int64(s.TimeProcessed / time.Microsecond)
-// 	if s.questionsAnswered > 0 {
-// 			microsperprocess = micros / int64(s.questionsAnswered)
-// 	} else {
-// 			microsperprocess = 0
-// 	}
-// 	return microsperprocess
-// }
+// GetAverage : method GetAverage
+func (s *Status ) GetAverage() float64{
+	var microsperprocess float64
+	
+	if s.QuestionsAnswered > 0 {
+			microsperprocess = s.TimeAnswered / float64(s.QuestionsAnswered)
+	} else {
+			microsperprocess = 0
+	}
+	return microsperprocess
+}
