@@ -17,6 +17,7 @@ type App struct {
 	priority      int
 	Answer
 	answerQueue   chan Answer
+	QuestionStatus
 }
 
 // Answer : here you tell us what Answer is
@@ -28,13 +29,21 @@ type Answer struct {
 
 // Status : here you tell us what Status is
 type Status struct {
+	mutex               sync.Mutex
+	QuestionsAnswered	int
+	QuestionsSubmited   int
+	AverageResponseTime int
+	QuestionsProcess    int
+	timeCounter         time.Time
+	TimeAnswered		time.Duration
+}
+
+// QuestionStatus : here you tell us what Status is
+type QuestionStatus struct {
 	ID       			string
 	Question
 	Status				string
-	TimeAnswered        time.Duration
-	mutex               sync.Mutex
 	Answer
-	AnsweredQuestions	int
 }
 
 // Question : here you tell us what Question is
@@ -55,6 +64,11 @@ type Ack struct {
 type PostAnswerAck struct {
 	Success    bool
 	Message string
+}
+
+// NewQuestionStatus : Constructor of status struct
+func NewQuestionStatus() *QuestionStatus {
+	return &QuestionStatus{}
 }
 
 // NewStatus : Constructor of status struct
@@ -98,6 +112,8 @@ func newQuestion(priority int, question string) Question {
 // QuestionPost :
 func (a *App) QuestionPost(priority int, question string) Ack {
 
+	a.timeCounter = time.Now()
+
 	q := newQuestion(priority, question)
 
 	ack := Ack{
@@ -110,6 +126,7 @@ func (a *App) QuestionPost(priority int, question string) Ack {
 
 		if priority == 1 {
 			a.questionQueue <- q
+			a.Status.QuestionsS()
 		}
 
 	}()
@@ -154,8 +171,7 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 	go func() {
 
 			a.answerQueue <- a.Answer
-			
-			a.Status.QuestionsProcessed()
+			a.Status.QuestionsA()
 
 	}()
 
@@ -163,10 +179,10 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
 }
 
-// GetStatus :
-func (a *App) GetStatus(param string) ( Status, error ) {
+// GetQuestion :
+func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
 
-	s := NewStatus()
+	s := NewQuestionStatus()
 
 	select {
 	case r, ok := <-a.answerQueue:
@@ -174,6 +190,9 @@ func (a *App) GetStatus(param string) ( Status, error ) {
 			s.Answer = r
 			s.ID = r.ID
 			s.Status = "answered"
+			t := time.Now()
+			elapsed := t.Sub(a.timeCounter)
+ 			a.Status.SetProcessed(elapsed)
 			return *s, nil
 		}
 	default:
@@ -185,16 +204,44 @@ func (a *App) GetStatus(param string) ( Status, error ) {
 
 }
 
-// QuestionsProcessed : method QuestionsProcessed
-func (s *Status ) QuestionsProcessed() {
-	fmt.Println("increasing in 1 the questions processed")
+// SetProcessed : method SetProcessed
+func (s *Status ) SetProcessed(e time.Duration) {
+	//s.mutex.Lock()
+	s.TimeAnswered += e
+	//s.mutex.Unlock()
+}
+
+// QuestionsA : method QuestionsProcessed
+func (s *Status ) QuestionsA() {
+	fmt.Println("increasing in 1 the answered processed")
 	s.mutex.Lock()
-	s.AnsweredQuestions ++
+	s.QuestionsAnswered ++
 	s.mutex.Unlock()
 }
 
-func (s Status) GetTotalStatus() ( Status ) {
+// QuestionsS : method QuestionsSubmited
+func (s *Status ) QuestionsS() {
+	fmt.Println("increasing in 1 the questions processed")
+	s.mutex.Lock()
+	s.QuestionsSubmited ++
+	s.mutex.Unlock()
+}
 
-	return s
+func (s *Status) GetTotalStatus() ( Status ) {
+
+	//s.averageResponseTime = s.GetAverage()
+	return *s
 	
 }
+
+// // GetAverage : method GetAverage
+// func (s *Status ) GetAverage() int64{
+// 	var microsperprocess int64
+// 	micros := int64(s.TimeProcessed / time.Microsecond)
+// 	if s.questionsAnswered > 0 {
+// 			microsperprocess = micros / int64(s.questionsAnswered)
+// 	} else {
+// 			microsperprocess = 0
+// 	}
+// 	return microsperprocess
+// }

@@ -39,6 +39,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var content IncomingQuestion
 	var postAnswer app.Answer
 	var responseTotalStatus app.Status
+	var responseGetQuestion app.QuestionStatus
 
 	if r.URL.Path == "/api/question/post" {
 
@@ -88,23 +89,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-	params, err := url.ParseQuery(r.URL.RawQuery)
-	if err != nil {
-			log.Fatal(err)
-	}
+
 
 
 	if r.URL.Path == "/api/question/status" {
 
+		params, err := url.ParseQuery(r.URL.RawQuery)
+		if err != nil {
+				log.Fatal(err)
+		}
+
 		param := params.Get("question_id")
 
-		//fmt.Println(param)
-
-		var responseStatus app.Status
-
-		responseStatus, _ = application.GetStatus(param)
 		
-		responseJSON, _ := json.Marshal(responseStatus)
+
+		responseGetQuestion, _ = application.GetQuestion(param)
+		
+		responseJSON, _ := json.Marshal(responseGetQuestion)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 
 	}
