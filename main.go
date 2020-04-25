@@ -43,14 +43,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/api/question/post" {
 
-		err := json.NewDecoder(r.Body).Decode(&content)
-		if err != nil {
+		//err := json.NewDecoder(r.Body).Decode(&content)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+
+		if err := decoder.Decode(&content); err != nil {
 			w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 			w.WriteHeader(http.StatusBadRequest)
-			return
+			responseAck = app.Ack{
+				Success: false,
+				ID: "",
+				Message: "error",
+			}
+		} else {
+			responseAck = application.QuestionPost(content.Priority, content.Question)
 		}
 
-		responseAck = application.QuestionPost(content.Priority, content.Question)
+		
 		responseJSON, _ := json.Marshal(responseAck)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 
@@ -80,8 +89,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-
-		fmt.Println("the answer I will send to method:", postAnswer.Answer)
 
 		responseAnswer = application.PostCsAnswer(postAnswer.ID, postAnswer.Answer)
 		responseJSON, _ := json.Marshal(responseAnswer)

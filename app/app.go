@@ -36,9 +36,15 @@ type Status struct {
 	QuestionsProcess    int
 	timeCounter         time.Time
 	TimeAnswered		float64
+	IDs					[]ID
 }
 
-// QuestionStatus : here you tell us what Status is
+// ID : a new struct with just one field
+type ID struct{
+	ID	string
+}
+
+// QuestionStatus : here you tell us what Status of a question is
 type QuestionStatus struct {
 	ID       			string
 	Question
@@ -104,17 +110,22 @@ func newQuestion(priority int, question string) Question {
 	return q
 }
 
-// QuestionPost :
-func (a *App) QuestionPost(priority int, question string) Ack {
+// QuestionPost : question method post
+func (a *App) QuestionPost(priority int, question string) (Ack) {
 
 	a.timeCounter = time.Now()
 
+	
 	q := newQuestion(priority, question)
 
 	ack := Ack{
 		ID:         q.ID,
 		Success:    true,
-		Message:    "OK",
+		Message:    "",
+	}
+
+	questionStat := ID{
+		ID: q.ID,
 	}
 
 	go func() {
@@ -122,6 +133,8 @@ func (a *App) QuestionPost(priority int, question string) Ack {
 		if priority == 1 {
 			a.questionQueue <- q
 			a.Status.QuestionsS()
+			fmt.Println("Añado este ID al array", q.ID)
+			a.Status.SetID(questionStat)
 		}
 
 	}()
@@ -130,7 +143,7 @@ func (a *App) QuestionPost(priority int, question string) Ack {
 
 }
 
-// GetNext :
+// GetNext : Return Question from questionQueue
 func (a *App) GetNext() (Question, error) {
 
 	var q Question
@@ -138,43 +151,69 @@ func (a *App) GetNext() (Question, error) {
 	select {
 	case q, ok := <-a.questionQueue:
 		if ok {
-			fmt.Printf("Value %v was read.\n", q)
 			return q, nil
 		}
-		fmt.Println("Channel closed!")
 		return q, errors.New("channel closed")
 
 	default:
-		fmt.Println("No value ready, moving on.")
-		return q, errors.New("Item does not exist")
+		return q, errors.New("No Question available")
 	}
 
 }
 
-// PostCsAnswer :
+func contains(s []ID, e string) bool {
+    for _, a := range s {
+        if a.ID == e {
+            return true
+        }
+    }
+    return false
+}
+
+// PostCsAnswer : used by customer support people to answer the question
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
-	a.Answer.Answer = answer
-	a.Answer.ID = ID
+	var ans Answer
 
-	ackpostanswered := PostAnswerAck{
-		Success: true,
-		Message: "OK",
-	}
+	ans.Answer = answer
+	ans.ID = ID
+
+	var ackpostanswered PostAnswerAck
+
+	fmt.Println("This is the array ids", a.Status.IDs)
 
 
-	go func() {
+	if contains(a.Status.IDs, ID) == true {
 
-			a.answerQueue <- a.Answer
+		fmt.Println("Existe el ID", ID)
+
+		go func() {
+
+			a.answerQueue <- ans
 			a.Status.QuestionsA()
 
-	}()
+		}()
+
+		ackpostanswered = PostAnswerAck{
+			Success: true,
+			Message: "OK",
+		}
+
+	} else {
+		fmt.Println("NOOOO existe el ID", ID)
+		ackpostanswered = PostAnswerAck{
+			Success: false,
+			Message: "Error",
+		}
+	}
 
 	return ackpostanswered
 
+
+
 }
 
-// GetQuestion :
+// GetQuestion : Get the status of the question with id param
 func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
 
 	s := NewQuestionStatus()
@@ -192,7 +231,6 @@ func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
 			return *s, nil
 		}
 	default:
-		fmt.Println("No value ready, moving on.")
 		return *s, errors.New("Does not exist")
 	}
 
@@ -200,16 +238,20 @@ func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
 
 }
 
+
+// SetID : method SetID
+func (s *Status ) SetID(e ID) {
+	s.IDs = append(s.IDs,e)
+	fmt.Printf("Value %v of IDs was added.\n", s.IDs)
+}
+
 // SetProcessed : method SetProcessed
 func (s *Status ) SetProcessed(e float64) {
-	//s.mutex.Lock()
 	s.TimeAnswered += e
-	//s.mutex.Unlock()
 }
 
 // QuestionsA : method QuestionsProcessed
 func (s *Status ) QuestionsA() {
-	fmt.Println("increasing in 1 the answered processed")
 	s.mutex.Lock()
 	s.QuestionsAnswered ++
 	s.mutex.Unlock()
@@ -217,17 +259,16 @@ func (s *Status ) QuestionsA() {
 
 // QuestionsS : method QuestionsSubmited
 func (s *Status ) QuestionsS() {
-	fmt.Println("increasing in 1 the questions processed")
 	s.mutex.Lock()
 	s.QuestionsSubmited ++
 	s.mutex.Unlock()
 }
 
+// GetTotalStatus : this method will return s status struct
 func (s *Status) GetTotalStatus() ( Status ) {
 
 	s.AverageResponseTime = s.GetAverage()
 
-	//fmt.Println(len(c))
 	return *s
 	
 }
