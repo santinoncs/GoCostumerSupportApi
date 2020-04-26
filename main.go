@@ -10,11 +10,7 @@ import (
 	"net/url"
 )
 
-// IncomingQuestion : here you tell us what IncomingQuestion is
-type IncomingQuestion struct {
-	Priority int    `json:"priority"`
-	Question string `json:"question"`
-}
+
 
 var application *app.App
 
@@ -36,14 +32,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var responseAck app.Ack
 	var responseQuestion app.Question
 	var responseAnswer app.PostAnswerAck
-	var content IncomingQuestion
+	var content app.IncomingPostQuestion
 	var postAnswer app.Answer
 	var responseTotalStatus app.Status
 	var responseGetQuestion app.QuestionStatus
 
 	if r.URL.Path == "/api/question/post" {
 
-		//err := json.NewDecoder(r.Body).Decode(&content)
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
 
@@ -67,7 +62,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/api/question/get_next" {
 
-		responseQuestion, _ = application.GetNext()
+		responseQuestion = application.GetNext()
 		responseJSON, _ := json.Marshal(responseQuestion)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 
@@ -96,9 +91,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	}
 
-
-
-
 	if r.URL.Path == "/api/question/status" {
 
 		params, err := url.ParseQuery(r.URL.RawQuery)
@@ -108,9 +100,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		param := params.Get("question_id")
 
-		
-
-		responseGetQuestion, _ = application.GetQuestion(param)
+		responseGetQuestion = application.GetQuestion(param)
 		
 		responseJSON, _ := json.Marshal(responseGetQuestion)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)

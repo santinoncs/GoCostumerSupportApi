@@ -3,28 +3,27 @@ package app
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
+	_ "errors"	// we would need this package
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 )
 
-// App : here you tell us what App is
+// App : Basic struct
 type App struct {
 	Status
-	questionQueue chan Question
+	questionQueue []chan Question
 	priority      int
 	Answer
 	answerQueue   chan Answer
 	QuestionStatus
 }
 
-// Answer : here you tell us what Answer is
+// Answer : Answer struct
 type Answer struct {
 	ID 	    string
 	Answer	string
-	Question
 }
 
 // Status : here you tell us what Status is
@@ -33,7 +32,6 @@ type Status struct {
 	QuestionsAnswered	int
 	QuestionsSubmited   int
 	AverageResponseTime float64
-	QuestionsProcess    int
 	timeCounter         time.Time
 	TimeAnswered		float64
 	IDs					[]ID
@@ -42,6 +40,12 @@ type Status struct {
 // ID : a new struct with just one field
 type ID struct{
 	ID	string
+}
+
+// IncomingPostQuestion : here you tell us what IncomingPostQuestion is
+type IncomingPostQuestion struct {
+	Priority int    `json:"priority"`
+	Question string `json:"question"`
 }
 
 // QuestionStatus : here you tell us what Status of a question is
@@ -79,7 +83,10 @@ func NewQuestionStatus() *QuestionStatus {
 
 // NewApp : here you tell us what NewApp is
 func NewApp() *App {
-	questionQueue := make(chan Question, 100)
+	questionQueue := make([]chan Question, 3)
+	for i := range questionQueue {
+			questionQueue[i] = make(chan Question,100)
+	}
 	answerQueue := make(chan Answer, 100)
 	return &App{
 		questionQueue: questionQueue,
@@ -87,23 +94,22 @@ func NewApp() *App {
 	}
 }
 
-func newQuestion(priority int, question string) Question {
-
-	fmt.Println("accessing new Question")
+func generateHash(question string) ( string ) {
 
 	now := time.Now().UnixNano()
-
 	t := strconv.FormatInt(now, 10)
-
 	s := question + t
-
 	bs := md5.New()
-
 	bs.Write([]byte(s))
-
 	hash1 := hex.EncodeToString(bs.Sum(nil)[:3])
 
-	ID := hash1 // call random generation number here
+	return hash1
+
+}
+
+func newQuestion(priority int, question string) Question {
+
+	ID := generateHash(question)
 
 	q := Question{ID: ID, Question: question, Priority: priority}
 
@@ -114,7 +120,6 @@ func newQuestion(priority int, question string) Question {
 func (a *App) QuestionPost(priority int, question string) (Ack) {
 
 	a.timeCounter = time.Now()
-
 	
 	q := newQuestion(priority, question)
 
@@ -131,11 +136,19 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 	go func() {
 
 		if priority == 1 {
-			a.questionQueue <- q
-			a.Status.QuestionsS()
-			fmt.Println("Añado este ID al array", q.ID)
-			a.Status.SetID(questionStat)
+			a.questionQueue[0] <- q
 		}
+		if priority == 2 {
+			a.questionQueue[1] <- q
+		}
+		if priority == 3 {
+			a.questionQueue[2] <- q
+		}
+		a.Status.QuestionsS()
+		fmt.Println("Añado este ID al array", q.ID)
+		a.QuestionStatus.Status = "in_progress"
+		a.Status.SetID(questionStat)
+
 
 	}()
 
@@ -144,22 +157,24 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 }
 
 // GetNext : Return Question from questionQueue
-func (a *App) GetNext() (Question, error) {
+func (a *App) GetNext() (Question) {
 
-	var q Question
 
-	select {
-	case q, ok := <-a.questionQueue:
-		if ok {
-			return q, nil
-		}
-		return q, errors.New("channel closed")
-
-	default:
-		return q, errors.New("No Question available")
+	for {
+		select {
+		case q := <-a.questionQueue[0]:
+				return q
+		case q := <-a.questionQueue[1]:
+				return q
+		case q := <-a.questionQueue[2]:
+				return q
+		default:
+				return Question{}
+}
 	}
 
 }
+
 
 func contains(s []ID, e string) bool {
     for _, a := range s {
@@ -200,41 +215,46 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 		}
 
 	} else {
-		fmt.Println("NOOOO existe el ID", ID)
+		//fmt.Println("NOOOO existe el ID", ID)
 		ackpostanswered = PostAnswerAck{
 			Success: false,
-			Message: "Error",
+			Message: "Error. Question ID not found",
 		}
 	}
 
 	return ackpostanswered
 
-
-
 }
 
 // GetQuestion : Get the status of the question with id param
-func (a *App) GetQuestion(param string) ( QuestionStatus, error ) {
-
-	s := NewQuestionStatus()
+func (a *App) GetQuestion(param string) ( QuestionStatus ) {
 
 	select {
 	case r, ok := <-a.answerQueue:
 		if ok {
-			s.Answer = r
-			s.ID = r.ID
-			s.Status = "answered"
+			fmt.Println("entering listen queue answer")
+			a.QuestionStatus.Answer = r
+			a.QuestionStatus.ID = r.ID
+			a.QuestionStatus.Status = "answered"
 			t := time.Now()
-			
 			elapsed := t.Sub(a.timeCounter)
  			a.Status.SetProcessed(elapsed.Seconds())
-			return *s, nil
-		}
+			return a.QuestionStatus
+		} 
 	default:
-		return *s, errors.New("Does not exist")
+		if contains(a.Status.IDs, param) == true {
+			// not yet proccessed
+			a.QuestionStatus.Status = "in_progress"
+		} else {
+			// nothing in the queue
+			a.QuestionStatus.Status = ""
+			fmt.Println("Nothing to be done to this ID")
+		}
+		a.QuestionStatus.ID = param
+		return a.QuestionStatus
 	}
 
-	return *s,nil
+	return a.QuestionStatus
 
 }
 
