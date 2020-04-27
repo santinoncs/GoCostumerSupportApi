@@ -10,8 +10,6 @@ import (
 	"net/url"
 )
 
-
-
 var application *app.App
 
 func main() {

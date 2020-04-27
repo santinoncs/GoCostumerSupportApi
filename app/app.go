@@ -3,8 +3,8 @@ package app
 import (
 	"crypto/md5"
 	"encoding/hex"
-	_ "errors"	// we would need this package
-	"fmt"
+	_ "errors" // we would need this package
+	_ "fmt"    // we would need this package
 	"strconv"
 	"sync"
 	"time"
@@ -12,7 +12,7 @@ import (
 
 // App : Basic struct
 type App struct {
-	Status
+	Status			
 	questionQueue []chan Question
 	priority      int
 	Answer
@@ -34,8 +34,10 @@ type Status struct {
 	AverageResponseTime float64
 	timeCounter         time.Time
 	TimeAnswered		float64
-	IDs					[]ID
+	iDs					[]ID
+	QueueLength		    map[int]int	// meant to store queue lenght 
 }
+
 
 // ID : a new struct with just one field
 type ID struct{
@@ -48,11 +50,11 @@ type IncomingPostQuestion struct {
 	Question string `json:"question"`
 }
 
-// QuestionStatus : here you tell us what Status of a question is
+// QuestionStatus : Status of a question
 type QuestionStatus struct {
 	ID       			string
 	Question
-	Status				string
+	Status				string 		// "queued|in_progress|answered"
 	Answer
 }
 
@@ -70,30 +72,35 @@ type Ack struct {
 	Message    string
 }
 
-// PostAnswerAck : here you tell us what PostAnswerAck is
+// PostAnswerAck : Response you give to client with each post question
 type PostAnswerAck struct {
 	Success    bool
 	Message string
 }
 
-// NewQuestionStatus : Constructor of status struct
+// NewQuestionStatus : Constructor of Question status struct
 func NewQuestionStatus() *QuestionStatus {
 	return &QuestionStatus{}
 }
 
-// NewApp : here you tell us what NewApp is
+// NewApp : Constructor of App struct
 func NewApp() *App {
 	questionQueue := make([]chan Question, 3)
 	for i := range questionQueue {
 			questionQueue[i] = make(chan Question,100)
 	}
+	var length = make(map[int]int)
 	answerQueue := make(chan Answer, 100)
 	return &App{
 		questionQueue: questionQueue,
 		answerQueue: answerQueue,
+		Status: Status{
+			QueueLength: length,
+		},
 	}
 }
 
+// This function receives an string and generates a Unique ID
 func generateHash(question string) ( string ) {
 
 	now := time.Now().UnixNano()
@@ -107,6 +114,7 @@ func generateHash(question string) ( string ) {
 
 }
 
+// Given a question string, we will return a Question struct with a random ID
 func newQuestion(priority int, question string) Question {
 
 	ID := generateHash(question)
@@ -137,15 +145,17 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 
 		if priority == 1 {
 			a.questionQueue[0] <- q
+			a.Status.incrementLenght(1)
 		}
 		if priority == 2 {
 			a.questionQueue[1] <- q
+			a.Status.incrementLenght(2)
 		}
 		if priority == 3 {
 			a.questionQueue[2] <- q
+			a.Status.incrementLenght(3)
 		}
 		a.Status.QuestionsS()
-		fmt.Println("Añado este ID al array", q.ID)
 		a.QuestionStatus.Status = "in_progress"
 		a.Status.SetID(questionStat)
 
@@ -158,7 +168,6 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 
 // GetNext : Return Question from questionQueue
 func (a *App) GetNext() (Question) {
-
 
 	for {
 		select {
@@ -175,7 +184,7 @@ func (a *App) GetNext() (Question) {
 
 }
 
-
+// This function searchs and ID into an slice of IDs
 func contains(s []ID, e string) bool {
     for _, a := range s {
         if a.ID == e {
@@ -195,12 +204,8 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
 	var ackpostanswered PostAnswerAck
 
-	fmt.Println("This is the array ids", a.Status.IDs)
 
-
-	if contains(a.Status.IDs, ID) == true {
-
-		fmt.Println("Existe el ID", ID)
+	if contains(a.Status.iDs, ID) == true {
 
 		go func() {
 
@@ -215,7 +220,6 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 		}
 
 	} else {
-		//fmt.Println("NOOOO existe el ID", ID)
 		ackpostanswered = PostAnswerAck{
 			Success: false,
 			Message: "Error. Question ID not found",
@@ -232,7 +236,6 @@ func (a *App) GetQuestion(param string) ( QuestionStatus ) {
 	select {
 	case r, ok := <-a.answerQueue:
 		if ok {
-			fmt.Println("entering listen queue answer")
 			a.QuestionStatus.Answer = r
 			a.QuestionStatus.ID = r.ID
 			a.QuestionStatus.Status = "answered"
@@ -242,13 +245,12 @@ func (a *App) GetQuestion(param string) ( QuestionStatus ) {
 			return a.QuestionStatus
 		} 
 	default:
-		if contains(a.Status.IDs, param) == true {
+		if contains(a.Status.iDs, param) == true {
 			// not yet proccessed
 			a.QuestionStatus.Status = "in_progress"
 		} else {
 			// nothing in the queue
 			a.QuestionStatus.Status = ""
-			fmt.Println("Nothing to be done to this ID")
 		}
 		a.QuestionStatus.ID = param
 		return a.QuestionStatus
@@ -258,11 +260,15 @@ func (a *App) GetQuestion(param string) ( QuestionStatus ) {
 
 }
 
+func (s *Status ) incrementLenght(priority int) {
+	
+	s.QueueLength[priority] ++
+
+}
 
 // SetID : method SetID
 func (s *Status ) SetID(e ID) {
-	s.IDs = append(s.IDs,e)
-	fmt.Printf("Value %v of IDs was added.\n", s.IDs)
+	s.iDs = append(s.iDs,e)
 }
 
 // SetProcessed : method SetProcessed
