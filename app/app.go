@@ -201,11 +201,16 @@ func contains(s []ID, e string) bool {
 // PostCsAnswer : used by customer support people to answer the question
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
+	t := time.Now()
+	elapsed := t.Sub(a.timeCounter)
+
 	if val, ok := a.QuestionMap[ID]; ok {
 		val.Status = "answered"
 		val.Answer = answer
 		a.QuestionMap[ID] = val
-		a.Status.incrementQuestionsAnswered()	
+		a.Status.incrementQuestionsAnswered()
+		a.Status.SetProcessed(elapsed.Seconds())
+		
 	}
 
 
@@ -224,11 +229,8 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 // GetQuestion : Get the status of the question with id param
 func (a *App) GetQuestion(param string) ( Question ) {
 
-	t := time.Now()
-	elapsed := t.Sub(a.timeCounter)
 
 	if val, ok := a.QuestionMap[param]; ok {
-		a.Status.SetProcessed(elapsed.Seconds())
 		return val
 	}
 
