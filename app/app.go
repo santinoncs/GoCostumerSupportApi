@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	_ "errors" // we would need this package
-	 "fmt"
+	_ "fmt"		// we would need this package
 	"strconv"
 	"sync"
 	"time"
@@ -150,7 +150,6 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 		a.Status.SetID(questionStat)
 		q.Status = "queued"
 		a.QuestionMap[q.ID] = q
-		fmt.Println("This is queued", q)
 
 	}()
 
@@ -203,10 +202,10 @@ func contains(s []ID, e string) bool {
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
 	if val, ok := a.QuestionMap[ID]; ok {
-		fmt.Println(val)
 		val.Status = "answered"
 		val.Answer = answer
 		a.QuestionMap[ID] = val
+		a.Status.incrementQuestionsAnswered()	
 	}
 
 
@@ -225,9 +224,11 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 // GetQuestion : Get the status of the question with id param
 func (a *App) GetQuestion(param string) ( Question ) {
 
+	t := time.Now()
+	elapsed := t.Sub(a.timeCounter)
 
 	if val, ok := a.QuestionMap[param]; ok {
-		fmt.Println(val)
+		a.Status.SetProcessed(elapsed.Seconds())
 		return val
 	}
 
@@ -252,8 +253,8 @@ func (s *Status ) SetProcessed(e float64) {
 	s.TimeAnswered += e
 }
 
-// QuestionsA : method QuestionsProcessed
-func (s *Status ) QuestionsA() {
+// incrementQuestionsAnswered : method incrementQuestionsAnswered
+func (s *Status ) incrementQuestionsAnswered() {
 	s.mutex.Lock()
 	s.QuestionsAnswered ++
 	s.mutex.Unlock()
