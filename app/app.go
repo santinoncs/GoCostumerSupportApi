@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	_ "errors" // we would need this package
-	 "fmt"    // we would need this package
+	 "fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -146,7 +146,7 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 			a.questionQueue[2] <- q
 			a.Status.incrementLenght(3)
 		}
-		a.Status.QuestionsQ()
+		a.Status.incrementQuestionsQueued()
 		a.Status.SetID(questionStat)
 		q.Status = "queued"
 		a.QuestionMap[q.ID] = q
@@ -168,17 +168,17 @@ func (a *App) GetNext() (Question) {
 		case q := <-a.questionQueue[0]:
 				q.Status = "in_progress"
 				a.QuestionMap[q.ID] = q
-				a.Status.QuestionsS()
+				a.Status.incrementQuestionsSubmited()
 				return q
 		case q := <-a.questionQueue[1]:
 				q.Status = "in_progress"
 				a.QuestionMap[q.ID] = q
-				a.Status.QuestionsS()
+				a.Status.incrementQuestionsSubmited()
 				return q
 		case q := <-a.questionQueue[2]:
 				q.Status = "in_progress"
 				a.QuestionMap[q.ID] = q
-				a.Status.QuestionsS()
+				a.Status.incrementQuestionsSubmited()
 				return q
 		default:
 				return Question{}
@@ -201,8 +201,6 @@ func contains(s []ID, e string) bool {
 
 // PostCsAnswer : used by customer support people to answer the question
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
-
-	// var ans Answer
 
 	if val, ok := a.QuestionMap[ID]; ok {
 		fmt.Println(val)
@@ -261,15 +259,15 @@ func (s *Status ) QuestionsA() {
 	s.mutex.Unlock()
 }
 
-// QuestionsS : method QuestionsSubmited
-func (s *Status ) QuestionsS() {
+// incrementQuestionsSubmited : method incrementQuestionsSubmited
+func (s *Status ) incrementQuestionsSubmited() {
 	s.mutex.Lock()
 	s.QuestionsSubmited ++
 	s.mutex.Unlock()
 }
 
-// QuestionsQ : method QuestionsQueued
-func (s *Status ) QuestionsQ() {
+// incrementQuestionsQueued : method incrementQuestionsQueued
+func (s *Status ) incrementQuestionsQueued() {
 	s.mutex.Lock()
 	s.QuestionsQueued ++
 	s.mutex.Unlock()
