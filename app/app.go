@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	_ "errors" // we would need this package
-	_ "fmt"    // we would need this package
+	 "fmt"    // we would need this package
 	"strconv"
 	"sync"
 	"time"
@@ -15,27 +15,28 @@ type App struct {
 	Status			
 	questionQueue []chan Question
 	priority      int
-	Answer
-	answerQueue   chan Answer
-	QuestionStatus
+	QuestionMap	  map[string]Question
+	Answer		
 }
 
-// Answer : Answer struct
-type Answer struct {
-	ID 	    string
-	Answer	string
-}
 
 // Status : here you tell us what Status is
 type Status struct {
 	mutex               sync.Mutex
 	QuestionsAnswered	int
 	QuestionsSubmited   int
+	QuestionsQueued		int
 	AverageResponseTime float64
 	timeCounter         time.Time
 	TimeAnswered		float64
 	iDs					[]ID
 	QueueLength		    map[int]int	// meant to store queue lenght 
+}
+
+// Answer : Answer struct
+type Answer struct {
+	ID 	    string
+	Answer	string
 }
 
 
@@ -50,19 +51,13 @@ type IncomingPostQuestion struct {
 	Question string `json:"question"`
 }
 
-// QuestionStatus : Status of a question
-type QuestionStatus struct {
-	ID       			string
-	Question
-	Status				string 		// "queued|in_progress|answered"
-	Answer
-}
-
 // Question : here you tell us what Question is
 type Question struct {
 	ID       string
 	Question string
 	Priority int
+	Status	 string
+	Answer	string
 }
 
 // Ack : here you tell us what Ack is
@@ -78,10 +73,6 @@ type PostAnswerAck struct {
 	Message string
 }
 
-// NewQuestionStatus : Constructor of Question status struct
-func NewQuestionStatus() *QuestionStatus {
-	return &QuestionStatus{}
-}
 
 // NewApp : Constructor of App struct
 func NewApp() *App {
@@ -90,10 +81,10 @@ func NewApp() *App {
 			questionQueue[i] = make(chan Question,100)
 	}
 	var length = make(map[int]int)
-	answerQueue := make(chan Answer, 100)
+	var QuestionMap = make(map[string]Question)
 	return &App{
 		questionQueue: questionQueue,
-		answerQueue: answerQueue,
+		QuestionMap: QuestionMap,
 		Status: Status{
 			QueueLength: length,
 		},
@@ -155,10 +146,11 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 			a.questionQueue[2] <- q
 			a.Status.incrementLenght(3)
 		}
-		a.Status.QuestionsS()
-		a.QuestionStatus.Status = "in_progress"
+		a.Status.QuestionsQ()
 		a.Status.SetID(questionStat)
-
+		q.Status = "queued"
+		a.QuestionMap[q.ID] = q
+		fmt.Println("This is queued", q)
 
 	}()
 
@@ -169,18 +161,31 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 // GetNext : Return Question from questionQueue
 func (a *App) GetNext() (Question) {
 
+
+	
 	for {
 		select {
 		case q := <-a.questionQueue[0]:
+				q.Status = "in_progress"
+				a.QuestionMap[q.ID] = q
+				a.Status.QuestionsS()
 				return q
 		case q := <-a.questionQueue[1]:
+				q.Status = "in_progress"
+				a.QuestionMap[q.ID] = q
+				a.Status.QuestionsS()
 				return q
 		case q := <-a.questionQueue[2]:
+				q.Status = "in_progress"
+				a.QuestionMap[q.ID] = q
+				a.Status.QuestionsS()
 				return q
 		default:
 				return Question{}
-}
+		}	
 	}
+
+	
 
 }
 
@@ -197,66 +202,39 @@ func contains(s []ID, e string) bool {
 // PostCsAnswer : used by customer support people to answer the question
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
-	var ans Answer
+	// var ans Answer
 
-	ans.Answer = answer
-	ans.ID = ID
+	if val, ok := a.QuestionMap[ID]; ok {
+		fmt.Println(val)
+		val.Status = "answered"
+		val.Answer = answer
+		a.QuestionMap[ID] = val
+	}
+
 
 	var ackpostanswered PostAnswerAck
 
-
-	if contains(a.Status.iDs, ID) == true {
-
-		go func() {
-
-			a.answerQueue <- ans
-			a.Status.QuestionsA()
-
-		}()
-
-		ackpostanswered = PostAnswerAck{
-			Success: true,
-			Message: "OK",
-		}
-
-	} else {
-		ackpostanswered = PostAnswerAck{
-			Success: false,
-			Message: "Error. Question ID not found",
-		}
+	ackpostanswered = PostAnswerAck{
+		Success: true,
+		Message: "OK",
 	}
+
 
 	return ackpostanswered
 
 }
 
 // GetQuestion : Get the status of the question with id param
-func (a *App) GetQuestion(param string) ( QuestionStatus ) {
+func (a *App) GetQuestion(param string) ( Question ) {
 
-	select {
-	case r, ok := <-a.answerQueue:
-		if ok {
-			a.QuestionStatus.Answer = r
-			a.QuestionStatus.ID = r.ID
-			a.QuestionStatus.Status = "answered"
-			t := time.Now()
-			elapsed := t.Sub(a.timeCounter)
- 			a.Status.SetProcessed(elapsed.Seconds())
-			return a.QuestionStatus
-		} 
-	default:
-		if contains(a.Status.iDs, param) == true {
-			// not yet proccessed
-			a.QuestionStatus.Status = "in_progress"
-		} else {
-			// nothing in the queue
-			a.QuestionStatus.Status = ""
-		}
-		a.QuestionStatus.ID = param
-		return a.QuestionStatus
+
+	if val, ok := a.QuestionMap[param]; ok {
+		fmt.Println(val)
+		return val
 	}
 
-	return a.QuestionStatus
+	return Question{}
+
 
 }
 
@@ -287,6 +265,13 @@ func (s *Status ) QuestionsA() {
 func (s *Status ) QuestionsS() {
 	s.mutex.Lock()
 	s.QuestionsSubmited ++
+	s.mutex.Unlock()
+}
+
+// QuestionsQ : method QuestionsQueued
+func (s *Status ) QuestionsQ() {
+	s.mutex.Lock()
+	s.QuestionsQueued ++
 	s.mutex.Unlock()
 }
 

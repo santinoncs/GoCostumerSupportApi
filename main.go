@@ -33,7 +33,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var content app.IncomingPostQuestion
 	var postAnswer app.Answer
 	var responseTotalStatus app.Status
-	var responseGetQuestion app.QuestionStatus
+	var responseGetQuestion app.Question
 
 	if r.URL.Path == "/api/question/post" {
 
