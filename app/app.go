@@ -3,7 +3,7 @@ package app
 import (
 	"crypto/md5"
 	"encoding/hex"
-	_ "errors" // we would need this package
+	"errors" // we would need this package
 	_ "fmt"		// we would need this package
 	"strconv"
 	"sync"
@@ -15,7 +15,7 @@ type App struct {
 	Status			
 	questionQueue []chan Question
 	priority      int
-	QuestionMap	  map[string]Question
+	QuestionDB
 	Answer		
 }
 
@@ -73,6 +73,38 @@ type PostAnswerAck struct {
 	Message string
 }
 
+// QuestionDB : 
+type QuestionDB struct{
+	questionDBMap	map[string]Question
+	mutex 			sync.RWMutex
+}
+
+// SetInProgress :  
+func (q *QuestionDB) SetInProgress (ID string){
+
+	q.mutex.Lock()
+	q.questionDBMap[ID] = Question{Status: "in_progress"}
+	q.mutex.Unlock()
+
+}
+
+// SetQueued :  SetQueued
+func (q *QuestionDB) SetQueued (ID string){
+
+	q.mutex.Lock()
+	q.questionDBMap[ID] = Question{Status: "queued"}
+	q.mutex.Unlock()
+
+}
+
+// SetAnswered :  SetAnswered
+func (q *QuestionDB) SetAnswered (ID string){
+
+	q.mutex.Lock()
+	q.questionDBMap[ID] = Question{Status: "answered"}
+	q.mutex.Unlock()
+
+}
 
 // NewApp : Constructor of App struct
 func NewApp() *App {
@@ -84,7 +116,9 @@ func NewApp() *App {
 	var QuestionMap = make(map[string]Question)
 	return &App{
 		questionQueue: questionQueue,
-		QuestionMap: QuestionMap,
+		QuestionDB: QuestionDB{
+			questionDBMap: QuestionMap,
+		},
 		Status: Status{
 			QueueLength: length,
 		},
@@ -148,9 +182,7 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 		}
 		a.Status.incrementQuestionsQueued()
 		a.Status.SetID(questionStat)
-		q.Status = "queued"
-		a.QuestionMap[q.ID] = q
-
+		a.QuestionDB.SetQueued(q.ID)
 	}()
 
 	return ack
@@ -166,17 +198,17 @@ func (a *App) GetNext() (Question) {
 		select {
 		case q := <-a.questionQueue[0]:
 				q.Status = "in_progress"
-				a.QuestionMap[q.ID] = q
+				a.QuestionDB.SetInProgress(q.ID)
 				a.Status.incrementQuestionsSubmited()
 				return q
 		case q := <-a.questionQueue[1]:
 				q.Status = "in_progress"
-				a.QuestionMap[q.ID] = q
+				a.QuestionDB.SetInProgress(q.ID)
 				a.Status.incrementQuestionsSubmited()
 				return q
 		case q := <-a.questionQueue[2]:
 				q.Status = "in_progress"
-				a.QuestionMap[q.ID] = q
+				a.QuestionDB.SetInProgress(q.ID)
 				a.Status.incrementQuestionsSubmited()
 				return q
 		default:
@@ -204,10 +236,10 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 	t := time.Now()
 	elapsed := t.Sub(a.timeCounter)
 
-	if val, ok := a.QuestionMap[ID]; ok {
+	if val, ok := a.questionDBMap[ID]; ok {
+		a.QuestionDB.SetAnswered(ID)
 		val.Status = "answered"
 		val.Answer = answer
-		a.QuestionMap[ID] = val
 		a.Status.incrementQuestionsAnswered()
 		a.Status.SetProcessed(elapsed.Seconds())
 		
@@ -227,14 +259,21 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 }
 
 // GetQuestion : Get the status of the question with id param
-func (a *App) GetQuestion(param string) ( Question ) {
+func (a *App) GetQuestion(param string) ( Question,error ) {
 
 
-	if val, ok := a.QuestionMap[param]; ok {
-		return val
+	a.QuestionDB.mutex.RLock()
+	if val, ok := a.QuestionDB.questionDBMap[param]; ok {
+
+		return val,nil
 	}
+	a.QuestionDB.mutex.RUnlock()
 
-	return Question{}
+	// here we need to evaluate else if there is no question yet
+	// and also take into account that we should use mutex
+
+
+	return Question{},errors.New("Item does not exist")
 
 
 }

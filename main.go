@@ -98,7 +98,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		param := params.Get("question_id")
 
-		responseGetQuestion = application.GetQuestion(param)
+		responseGetQuestion,_ = application.GetQuestion(param)
 		
 		responseJSON, _ := json.Marshal(responseGetQuestion)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
