@@ -60,7 +60,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/api/question/get_next" {
 
-		responseQuestion = application.GetNext()
+		r := application.GetNext()
+		responseQuestion = app.Question{
+			ID: r,
+		}
 		responseJSON, _ := json.Marshal(responseQuestion)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 

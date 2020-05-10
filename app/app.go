@@ -3,8 +3,8 @@ package app
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"errors" // we would need this package
-	_ "fmt"		// we would need this package
+	"errors"	 // we would need this package
+	_ "fmt"		 // we would need this package
 	"strconv"
 	"sync"
 	"time"
@@ -13,7 +13,7 @@ import (
 // App : Basic struct
 type App struct {
 	Status			
-	questionQueue []chan Question
+	questionQueue []chan string
 	priority      int
 	QuestionDB
 	Answer		
@@ -108,9 +108,9 @@ func (q *QuestionDB) SetAnswered (ID string){
 
 // NewApp : Constructor of App struct
 func NewApp() *App {
-	questionQueue := make([]chan Question, 3)
+	questionQueue := make([]chan string, 3)
 	for i := range questionQueue {
-			questionQueue[i] = make(chan Question,100)
+			questionQueue[i] = make(chan string,100)
 	}
 	var length = make(map[int]int)
 	var QuestionMap = make(map[string]Question)
@@ -169,15 +169,15 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 	go func() {
 
 		if priority == 1 {
-			a.questionQueue[0] <- q
+			a.questionQueue[0] <- q.ID
 			a.Status.incrementLenght(1)
 		}
 		if priority == 2 {
-			a.questionQueue[1] <- q
+			a.questionQueue[1] <- q.ID
 			a.Status.incrementLenght(2)
 		}
 		if priority == 3 {
-			a.questionQueue[2] <- q
+			a.questionQueue[2] <- q.ID
 			a.Status.incrementLenght(3)
 		}
 		a.Status.incrementQuestionsQueued()
@@ -190,29 +190,27 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 }
 
 // GetNext : Return Question from questionQueue
-func (a *App) GetNext() (Question) {
+func (a *App) GetNext() (string) {
+
 
 
 	
 	for {
 		select {
-		case q := <-a.questionQueue[0]:
-				q.Status = "in_progress"
-				a.QuestionDB.SetInProgress(q.ID)
+		case qi := <-a.questionQueue[0]:
+				a.QuestionDB.SetInProgress(qi)
 				a.Status.incrementQuestionsSubmited()
-				return q
-		case q := <-a.questionQueue[1]:
-				q.Status = "in_progress"
-				a.QuestionDB.SetInProgress(q.ID)
+				return qi
+		case qi := <-a.questionQueue[1]:
+				a.QuestionDB.SetInProgress(qi)
 				a.Status.incrementQuestionsSubmited()
-				return q
-		case q := <-a.questionQueue[2]:
-				q.Status = "in_progress"
-				a.QuestionDB.SetInProgress(q.ID)
+				return qi
+		case qi := <-a.questionQueue[2]:
+				a.QuestionDB.SetInProgress(qi)
 				a.Status.incrementQuestionsSubmited()
-				return q
+				return qi
 		default:
-				return Question{}
+				return ""
 		}	
 	}
 
@@ -239,7 +237,6 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 	if val, ok := a.questionDBMap[ID]; ok {
 		a.QuestionDB.SetAnswered(ID)
 		val.Status = "answered"
-		val.Answer = answer
 		a.Status.incrementQuestionsAnswered()
 		a.Status.SetProcessed(elapsed.Seconds())
 		
