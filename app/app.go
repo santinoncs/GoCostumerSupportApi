@@ -3,8 +3,8 @@ package app
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"errors"	 // we would need this package
-	_ "fmt"		 // we would need this package
+	"errors" // we would need this package
+	_ "fmt" // we would need this package
 	"strconv"
 	"sync"
 	"time"
@@ -55,7 +55,7 @@ type IncomingPostQuestion struct {
 type Question struct {
 	ID       string
 	Question string
-	Priority int
+	priority int
 	Status	 string
 	Answer	string
 }
@@ -144,7 +144,7 @@ func newQuestion(priority int, question string) Question {
 
 	ID := generateHash(question)
 
-	q := Question{ID: ID, Question: question, Priority: priority}
+	q := Question{ID: ID, Question: question, priority: priority}
 
 	return q
 }
@@ -231,23 +231,33 @@ func contains(s []ID, e string) bool {
 // PostCsAnswer : used by customer support people to answer the question
 func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 
+	var ackpostanswered PostAnswerAck
+
 	t := time.Now()
 	elapsed := t.Sub(a.timeCounter)
 
 	if val, ok := a.questionDBMap[ID]; ok {
-		a.QuestionDB.SetAnswered(ID)
-		val.Status = "answered"
-		a.Status.incrementQuestionsAnswered()
-		a.Status.SetProcessed(elapsed.Seconds())
+		if ( a.questionDBMap[ID].Status == "in_progress" ) {
+			a.QuestionDB.SetAnswered(ID)
+			val.Status = "answered"
+			a.Status.incrementQuestionsAnswered()
+			a.Status.SetProcessed(elapsed.Seconds())
+			ackpostanswered = PostAnswerAck{
+				Success: true,
+				Message: "OK",
+			}
+		} else {
+			ackpostanswered = PostAnswerAck{
+				Success: false,
+				Message: "Not in progress state",
+			}
+		}
 		
-	}
-
-
-	var ackpostanswered PostAnswerAck
-
-	ackpostanswered = PostAnswerAck{
-		Success: true,
-		Message: "OK",
+	} else {
+		ackpostanswered = PostAnswerAck{
+			Success: false,
+			Message: "Not exists ID",
+		}
 	}
 
 
@@ -258,16 +268,13 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 // GetQuestion : Get the status of the question with id param
 func (a *App) GetQuestion(param string) ( Question,error ) {
 
+	defer a.QuestionDB.mutex.RUnlock()
 
 	a.QuestionDB.mutex.RLock()
 	if val, ok := a.QuestionDB.questionDBMap[param]; ok {
 
 		return val,nil
 	}
-	a.QuestionDB.mutex.RUnlock()
-
-	// here we need to evaluate else if there is no question yet
-	// and also take into account that we should use mutex
 
 
 	return Question{},errors.New("Item does not exist")
