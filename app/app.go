@@ -75,34 +75,42 @@ type PostAnswerAck struct {
 
 // QuestionDB : 
 type QuestionDB struct{
-	questionDBMap	map[string]Question
+	questionDBMap	map[string]*Question
 	mutex 			sync.RWMutex
+}
+
+
+
+// SetQueued :  SetQueued
+func (q *QuestionDB) SetQueued (ID string, question string){
+
+
+	q.mutex.Lock()
+	q.questionDBMap[ID] = &Question{ID: ID,Status: "queued", Question: question}
+	q.mutex.Unlock()
+
+
 }
 
 // SetInProgress :  
 func (q *QuestionDB) SetInProgress (ID string){
 
-	q.mutex.Lock()
-	q.questionDBMap[ID] = Question{Status: "in_progress"}
-	q.mutex.Unlock()
-
-}
-
-// SetQueued :  SetQueued
-func (q *QuestionDB) SetQueued (ID string){
 
 	q.mutex.Lock()
-	q.questionDBMap[ID] = Question{Status: "queued"}
+	q.questionDBMap[ID].Status = "in_progress"
 	q.mutex.Unlock()
+
 
 }
 
 // SetAnswered :  SetAnswered
 func (q *QuestionDB) SetAnswered (ID string){
 
+
 	q.mutex.Lock()
-	q.questionDBMap[ID] = Question{Status: "answered"}
+	q.questionDBMap[ID].Status = "in_progress"	
 	q.mutex.Unlock()
+
 
 }
 
@@ -113,7 +121,7 @@ func NewApp() *App {
 			questionQueue[i] = make(chan string,100)
 	}
 	var length = make(map[int]int)
-	var QuestionMap = make(map[string]Question)
+	var QuestionMap = make(map[string]*Question)
 	return &App{
 		questionQueue: questionQueue,
 		QuestionDB: QuestionDB{
@@ -182,7 +190,7 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 		}
 		a.Status.incrementQuestionsQueued()
 		a.Status.SetID(questionStat)
-		a.QuestionDB.SetQueued(q.ID)
+		a.QuestionDB.SetQueued(q.ID,question)
 	}()
 
 	return ack
@@ -191,8 +199,6 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 
 // GetNext : Return Question from questionQueue
 func (a *App) GetNext() (string) {
-
-
 
 	
 	for {
@@ -268,12 +274,11 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 // GetQuestion : Get the status of the question with id param
 func (a *App) GetQuestion(param string) ( Question,error ) {
 
-	defer a.QuestionDB.mutex.RUnlock()
+	defer a.QuestionDB.mutex.Unlock()
 
-	a.QuestionDB.mutex.RLock()
+	a.QuestionDB.mutex.Lock()
 	if val, ok := a.QuestionDB.questionDBMap[param]; ok {
-
-		return val,nil
+		return *val,nil
 	}
 
 
