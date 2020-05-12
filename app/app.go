@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors" // we would need this package
-	_ "fmt" // we would need this package
+	_ "fmt"  // we would need this package
 	"strconv"
 	"sync"
 	"time"
@@ -12,37 +12,35 @@ import (
 
 // App : Basic struct
 type App struct {
-	Status			
+	Status
 	questionQueue []chan string
 	priority      int
 	QuestionDB
-	Answer		
+	Answer
 }
-
 
 // Status : here you tell us what Status is
 type Status struct {
 	mutex               sync.Mutex
-	QuestionsAnswered	int
+	QuestionsAnswered   int
 	QuestionsSubmited   int
-	QuestionsQueued		int
+	QuestionsQueued     int
 	AverageResponseTime float64
 	timeCounter         time.Time
-	TimeAnswered		float64
-	iDs					[]ID
-	QueueLength		    map[int]int	// meant to store queue lenght 
+	TimeAnswered        float64
+	iDs                 []ID
+	QueueLength         map[int]int // meant to store queue lenght
 }
 
 // Answer : Answer struct
 type Answer struct {
-	ID 	    string
-	Answer	string
+	ID     string
+	Answer string
 }
 
-
 // ID : a new struct with just one field
-type ID struct{
-	ID	string
+type ID struct {
+	ID string
 }
 
 // IncomingPostQuestion : here you tell us what IncomingPostQuestion is
@@ -53,64 +51,57 @@ type IncomingPostQuestion struct {
 
 // Question : here you tell us what Question is
 type Question struct {
-	ID       string
-	Question string
-	priority int
-	Status	 string
-	Answer	string
+	ID         string
+	Question   string
+	priority   int
+	Status     string
+	Answer     string
+	AnswerTime time.Duration
 }
 
 // Ack : here you tell us what Ack is
 type Ack struct {
-	ID         string
-	Success    bool
-	Message    string
+	ID      string
+	Success bool
+	Message string
 }
 
 // PostAnswerAck : Response you give to client with each post question
 type PostAnswerAck struct {
-	Success    bool
+	Success bool
 	Message string
 }
 
-// QuestionDB : 
-type QuestionDB struct{
-	questionDBMap	map[string]*Question
-	mutex 			sync.RWMutex
+// QuestionDB :
+type QuestionDB struct {
+	questionDBMap map[string]*Question
+	mutex         sync.RWMutex
 }
-
-
 
 // SetQueued :  SetQueued
-func (q *QuestionDB) SetQueued (ID string, question string){
-
+func (q *QuestionDB) SetQueued(ID string, question string) {
 
 	q.mutex.Lock()
-	q.questionDBMap[ID] = &Question{ID: ID,Status: "queued", Question: question}
+	q.questionDBMap[ID] = &Question{ID: ID, Status: "queued", Question: question}
 	q.mutex.Unlock()
-
 
 }
 
-// SetInProgress :  
-func (q *QuestionDB) SetInProgress (ID string){
-
+// SetInProgress :
+func (q *QuestionDB) SetInProgress(ID string) {
 
 	q.mutex.Lock()
 	q.questionDBMap[ID].Status = "in_progress"
 	q.mutex.Unlock()
 
-
 }
 
 // SetAnswered :  SetAnswered
-func (q *QuestionDB) SetAnswered (ID string){
-
+func (q *QuestionDB) SetAnswered(ID string) {
 
 	q.mutex.Lock()
-	q.questionDBMap[ID].Status = "in_progress"	
+	q.questionDBMap[ID].Status = "in_progress"
 	q.mutex.Unlock()
-
 
 }
 
@@ -118,7 +109,7 @@ func (q *QuestionDB) SetAnswered (ID string){
 func NewApp() *App {
 	questionQueue := make([]chan string, 3)
 	for i := range questionQueue {
-			questionQueue[i] = make(chan string,100)
+		questionQueue[i] = make(chan string, 100)
 	}
 	var length = make(map[int]int)
 	var QuestionMap = make(map[string]*Question)
@@ -134,7 +125,7 @@ func NewApp() *App {
 }
 
 // This function receives an string and generates a Unique ID
-func generateHash(question string) ( string ) {
+func generateHash(question string) string {
 
 	now := time.Now().UnixNano()
 	t := strconv.FormatInt(now, 10)
@@ -158,16 +149,16 @@ func newQuestion(priority int, question string) Question {
 }
 
 // QuestionPost : question method post
-func (a *App) QuestionPost(priority int, question string) (Ack) {
+func (a *App) QuestionPost(priority int, question string) Ack {
 
 	a.timeCounter = time.Now()
-	
+
 	q := newQuestion(priority, question)
 
 	ack := Ack{
-		ID:         q.ID,
-		Success:    true,
-		Message:    "",
+		ID:      q.ID,
+		Success: true,
+		Message: "",
 	}
 
 	questionStat := ID{
@@ -190,7 +181,7 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 		}
 		a.Status.incrementQuestionsQueued()
 		a.Status.SetID(questionStat)
-		a.QuestionDB.SetQueued(q.ID,question)
+		a.QuestionDB.SetQueued(q.ID, question)
 	}()
 
 	return ack
@@ -198,40 +189,37 @@ func (a *App) QuestionPost(priority int, question string) (Ack) {
 }
 
 // GetNext : Return Question from questionQueue
-func (a *App) GetNext() (string) {
+func (a *App) GetNext() string {
 
-	
 	for {
 		select {
 		case qi := <-a.questionQueue[0]:
-				a.QuestionDB.SetInProgress(qi)
-				a.Status.incrementQuestionsSubmited()
-				return qi
+			a.QuestionDB.SetInProgress(qi)
+			a.Status.incrementQuestionsSubmited()
+			return qi
 		case qi := <-a.questionQueue[1]:
-				a.QuestionDB.SetInProgress(qi)
-				a.Status.incrementQuestionsSubmited()
-				return qi
+			a.QuestionDB.SetInProgress(qi)
+			a.Status.incrementQuestionsSubmited()
+			return qi
 		case qi := <-a.questionQueue[2]:
-				a.QuestionDB.SetInProgress(qi)
-				a.Status.incrementQuestionsSubmited()
-				return qi
+			a.QuestionDB.SetInProgress(qi)
+			a.Status.incrementQuestionsSubmited()
+			return qi
 		default:
-				return ""
-		}	
+			return ""
+		}
 	}
-
-	
 
 }
 
 // This function searchs and ID into an slice of IDs
 func contains(s []ID, e string) bool {
-    for _, a := range s {
-        if a.ID == e {
-            return true
-        }
-    }
-    return false
+	for _, a := range s {
+		if a.ID == e {
+			return true
+		}
+	}
+	return false
 }
 
 // PostCsAnswer : used by customer support people to answer the question
@@ -243,8 +231,9 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 	elapsed := t.Sub(a.timeCounter)
 
 	if val, ok := a.questionDBMap[ID]; ok {
-		if ( a.questionDBMap[ID].Status == "in_progress" ) {
+		if a.questionDBMap[ID].Status == "in_progress" {
 			a.QuestionDB.SetAnswered(ID)
+			a.questionDBMap[ID].AnswerTime = elapsed
 			val.Status = "answered"
 			a.Status.incrementQuestionsAnswered()
 			a.Status.SetProcessed(elapsed.Seconds())
@@ -258,7 +247,7 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 				Message: "Not in progress state",
 			}
 		}
-		
+
 	} else {
 		ackpostanswered = PostAnswerAck{
 			Success: false,
@@ -266,81 +255,78 @@ func (a *App) PostCsAnswer(ID string, answer string) PostAnswerAck {
 		}
 	}
 
-
 	return ackpostanswered
 
 }
 
 // GetQuestion : Get the status of the question with id param
-func (a *App) GetQuestion(param string) ( Question,error ) {
+func (a *App) GetQuestion(param string) (Question, error) {
 
 	defer a.QuestionDB.mutex.Unlock()
 
 	a.QuestionDB.mutex.Lock()
 	if val, ok := a.QuestionDB.questionDBMap[param]; ok {
-		return *val,nil
+		return *val, nil
 	}
 
-
-	return Question{},errors.New("Item does not exist")
-
+	return Question{}, errors.New("Item does not exist")
 
 }
 
-func (s *Status ) incrementLenght(priority int) {
-	
-	s.QueueLength[priority] ++
+func (s *Status) incrementLenght(priority int) {
+
+	s.QueueLength[priority]++
 
 }
 
 // SetID : method SetID
-func (s *Status ) SetID(e ID) {
-	s.iDs = append(s.iDs,e)
+func (s *Status) SetID(e ID) {
+	s.iDs = append(s.iDs, e)
 }
 
 // SetProcessed : method SetProcessed
-func (s *Status ) SetProcessed(e float64) {
+func (s *Status) SetProcessed(e float64) {
 	s.TimeAnswered += e
 }
 
 // incrementQuestionsAnswered : method incrementQuestionsAnswered
-func (s *Status ) incrementQuestionsAnswered() {
+func (s *Status) incrementQuestionsAnswered() {
 	s.mutex.Lock()
-	s.QuestionsAnswered ++
+	s.QuestionsAnswered++
 	s.mutex.Unlock()
 }
 
 // incrementQuestionsSubmited : method incrementQuestionsSubmited
-func (s *Status ) incrementQuestionsSubmited() {
+func (s *Status) incrementQuestionsSubmited() {
 	s.mutex.Lock()
-	s.QuestionsSubmited ++
+	s.QuestionsSubmited++
 	s.mutex.Unlock()
 }
 
 // incrementQuestionsQueued : method incrementQuestionsQueued
-func (s *Status ) incrementQuestionsQueued() {
+func (s *Status) incrementQuestionsQueued() {
 	s.mutex.Lock()
-	s.QuestionsQueued ++
+	s.QuestionsQueued++
 	s.mutex.Unlock()
 }
 
 // GetTotalStatus : this method will return s status struct
-func (s *Status) GetTotalStatus() ( Status ) {
+func (s *Status) GetTotalStatus() Status {
 
 	s.AverageResponseTime = s.GetAverage()
 
 	return *s
-	
+
 }
 
 // GetAverage : method GetAverage
-func (s *Status ) GetAverage() float64{
+func (s *Status) GetAverage() float64 {
 	var microsperprocess float64
-	
+
 	if s.QuestionsAnswered > 0 {
-			microsperprocess = s.TimeAnswered / float64(s.QuestionsAnswered)
+		microsperprocess = s.TimeAnswered / float64(s.QuestionsAnswered)
 	} else {
-			microsperprocess = 0
+		microsperprocess = 0
 	}
 	return microsperprocess
 }

@@ -45,14 +45,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			responseAck = app.Ack{
 				Success: false,
-				ID: "",
+				ID:      "",
 				Message: "error",
 			}
 		} else {
 			responseAck = application.QuestionPost(content.Priority, content.Question)
 		}
 
-		
 		responseJSON, _ := json.Marshal(responseAck)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 
@@ -96,17 +95,16 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 		params, err := url.ParseQuery(r.URL.RawQuery)
 		if err != nil {
-				log.Fatal(err)
+			log.Fatal(err)
 		}
 
 		param := params.Get("question_id")
 
-		responseGetQuestion,_ = application.GetQuestion(param)
-		
+		responseGetQuestion, _ = application.GetQuestion(param)
+
 		responseJSON, _ := json.Marshal(responseGetQuestion)
 		fmt.Fprintf(w, "Response: %s\n", responseJSON)
 
 	}
-
 
 }
