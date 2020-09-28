@@ -3,7 +3,6 @@
 Updates for the customer ticketing system
 
 
-
 Now we're adding real customer support people to answer the questions, this would involve changes in the API,
 and of course the code changes too, you will need to drop certain logic, so better create a copy of the initial
 project and do your changes there, so that you can keep the previous version separately.
